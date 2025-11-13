@@ -19,6 +19,10 @@
             height: 100%;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: #000; /* Nền đen cho không gian */
+            
+            /* <<< FIX CHỮ MỊN HƠN >>> */
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
         
         /* Canvas cho 3D background */
@@ -64,7 +68,10 @@
             fill: #fff; /* Chữ trắng */
             paint-order: stroke;
             stroke: #000; /* Viền đen cho chữ */
-            stroke-width: 3px;
+            
+            /* <<< FIX CHỮ NHÒE: Giảm từ 3px xuống 2px >>> */
+            stroke-width: 2px;
+            
             stroke-linecap: butt;
             stroke-linejoin: miter;
             pointer-events: none;
@@ -177,7 +184,7 @@
         let asteroids = []; // Mảng chứa các thiên thạch
         const canvas = document.getElementById('bg-canvas');
         const textureLoader = new THREE.TextureLoader();
-        textureLoader.crossOrigin = "anonymous"; // <<< FIX LỖI "Script error"
+        textureLoader.crossOrigin = "anonymous";
         let fireTexture;
 
         function initThreeJS() {
@@ -188,6 +195,10 @@
             camera.position.z = 100;
 
             renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+            
+            // <<< FIX NỀN 3D MỜ: Render đúng tỷ lệ pixel của màn hình >>>
+            renderer.setPixelRatio(window.devicePixelRatio);
+            
             renderer.setSize(window.innerWidth, window.innerHeight);
 
             const ambientLight = new THREE.AmbientLight(0x404040);
@@ -317,6 +328,10 @@
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
+            
+            // <<< FIX NỀN 3D MỜ: Cập nhật cả setPixelRatio khi resize >>>
+            renderer.setPixelRatio(window.devicePixelRatio); 
+            
             renderer.setSize(window.innerWidth, window.innerHeight);
             resizeD3();
         }
@@ -433,11 +448,8 @@
             });
         
         svgD3.call(zoom);
-        // Đẩy sơ đồ vào 300px từ lề trái
-svgD3.call(zoom.transform, d3.zoomIdentity.translate(300, height / 2).scale(1.0));
-
-// Hoặc: Đẩy sơ đồ vào 1/4 chiều rộng màn hình
-svgD3.call(zoom.transform, d3.zoomIdentity.translate(width / 4, height / 2).scale(1.0));
+        // Đặt vị trí ban đầu (có thể thay 300 bằng margin.left nếu muốn)
+        svgD3.call(zoom.transform, d3.zoomIdentity.translate(300, height / 2).scale(1.0));
 
         // Hàm Update (Cập nhật biểu đồ)
         function update(source, forceResize = false) {
