@@ -1,586 +1,677 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sơ đồ tư duy - Nam Cao</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sơ đồ tư duy - Nguyễn Cơ</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+<style>
+    /* === CSS CHUNG === */
+    body, html {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background-color: #000; 
+        color: #fff;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    .screen {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: opacity 0.6s ease-in-out;
+    }
+    .screen.active {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: all;
+    }
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    /* === CSS NÚT ĐIỀU KHIỂN CHUNG === */
+    #navigation-controls {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 9999;
+        display: flex;
+        gap: 10px;
+    }
+    #navigation-controls button {
+        background: rgba(31, 119, 180, 0.9);
+        border: 2px solid rgba(31, 119, 180, 1);
+        padding: 10px 20px;
+        border-radius: 6px;
+        color: #fff;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 16px;
+        transition: transform 0.2s ease, background 0.2s ease;
+    }
+    #navigation-controls button:hover {
+        transform: scale(1.05);
+        background: rgba(41, 139, 200, 1);
+    }
+    #navigation-controls button:disabled {
+        background: rgba(100, 100, 100, 0.5);
+        border-color: rgba(100, 100, 100, 0.5);
+        cursor: not-allowed;
+    }
+
+
+    /* === 1. CSS CHO SLIDE MỞ ĐẦU === */
+    #screen-1-intro {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+    }
+    #screen-1-intro #animatedText {
+        font-size: 3.5vw;
+        font-weight: bold;
+        line-height: 1.5;
+    }
+    #screen-1-intro #animatedText span {
+        opacity: 0; 
+        display: inline-block;
+    }
+    @keyframes wave {
+        0% { opacity: 0; transform: translateY(20px) scale(0.8); }
+        100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes glowColor {
+        0% { color: #f093fb; }
+        33% { color: #58c0ff; }
+        66% { color: #ff00ff; }
+        100% { color: #f093fb; }
+    }
+
+    /* === 2. CSS CHO SLIDE SƠ ĐỒ TƯ DUY === */
+    #screen-2-mindmap #bg-canvas, 
+    #screen-2-mindmap #mindmap {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        will-change: transform;
+    }
+    #screen-2-mindmap #bg-canvas { z-index: 1; }
+    #screen-2-mindmap #mindmap { z-index: 2; background-color: transparent; cursor: move; }
+
+    #screen-2-mindmap .link { fill: none; stroke: #ddd; stroke-opacity: 0.5; stroke-width: 1.5px; }
+    #screen-2-mindmap .node circle { stroke: #fff; stroke-width: 1.5px; }
+    #screen-2-mindmap .node text {
+        font-weight: 500;
+        fill: #fff; 
+        paint-order: stroke;
+        stroke: #000; 
+        stroke-width: 2px;
+        pointer-events: none;
+    }
+    #screen-2-mindmap .node.leaf text { text-anchor: start; }
+    #screen-2-mindmap .node.internal text, 
+    #screen-2-mindmap .node.root text, 
+    #screen-2-mindmap .node.collapsed text { text-anchor: end; }
+    #screen-2-mindmap .node.root circle { fill: #d62728; }
+    #screen-2-mindmap .node.internal circle { fill: #1f77b4; cursor: pointer; }
+    #screen-2-mindmap .node.collapsed circle { fill: #aec7e8; cursor: pointer; }
+    #screen-2-mindmap .node.leaf circle { fill: #ff7f0e; }
     
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    
-    <style>
-        /* CSS cho toàn bộ trang */
-        body, html {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            width: 100%;
-            height: 100%;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #000; /* Nền đen cho không gian */
-        }
-        
-        /* Canvas cho 3D background */
-        #bg-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1; /* Nằm ở lớp dưới */
-        }
+    #screen-2-mindmap #minimap-container {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        z-index: 4;
+        width: 200px;
+        height: 150px;
+        background: rgba(20, 20, 20, 0.95);
+        border: 2px solid rgba(31, 119, 180, 0.8);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    #screen-2-mindmap #minimap-svg { width: 100%; height: 100%; cursor: pointer; }
+    #screen-2-mindmap #minimap-svg .mini-node { fill: rgba(31, 119, 180, 0.8); stroke: none; }
+    #screen-2-mindmap #minimap-svg .mini-link { fill: none; stroke: rgba(255, 255, 255, 0.3); stroke-width: 0.8; }
+    #screen-2-mindmap #minimap-svg .viewport-rect {
+        fill: rgba(214, 39, 40, 0.1);
+        stroke: rgba(214, 39, 40, 0.9);
+        stroke-width: 2;
+        cursor: move;
+        pointer-events: all;
+    }
 
-        /* SVG cho D3 Mindmap */
-        svg {
-            position: absolute; /* Đặt SVG lên trên canvas */
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 2; /* Nằm ở lớp trên */
-            background-color: transparent; /* Nền trong suốt để thấy canvas */
-            cursor: move;
-        }
+    #screen-2-mindmap #settings-toggle-icon {
+        position: absolute;
+        bottom: 20px;
+        right: 150px; 
+        z-index: 4;
+        cursor: pointer;
+        width: 40px;
+        height: 40px;
+        padding: 5px;
+        background: rgba(31, 119, 180, 0.9);
+        border-radius: 50%;
+        box-sizing: border-box;
+        transition: transform 0.3s ease;
+    }
+    #screen-2-mindmap #settings-toggle-icon:hover { transform: rotate(60deg); }
+    #screen-2-mindmap #settings-toggle-icon svg { width: 100%; height: 100%; fill: #fff; }
 
-        /* Kiểu dáng cho các đường liên kết (paths) */
-        .link {
-            fill: none;
-            stroke: #ddd;
-            stroke-opacity: 0.5;
-            stroke-width: 1.5px;
-        }
+    #screen-2-mindmap #settings-panel {
+        position: absolute;
+        bottom: 70px; 
+        right: 150px; 
+        z-index: 3;
+        display: none; 
+        flex-direction: column;
+        gap: 15px; 
+        background: rgba(20,20,20,0.95);
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid #555;
+        width: 250px;
+    }
+    #screen-2-mindmap #settings-panel.open { display: flex; }
+    #screen-2-mindmap .control-group { display: flex; flex-direction: column; gap: 5px; }
+    #screen-2-mindmap .control-group label { font-size: 12px; color: #fff; font-weight: bold; }
+    #screen-2-mindmap .control-group input[type="range"] { width: 100%; cursor: pointer; }
 
-        /* Kiểu dáng chung cho các nút (node) */
-        .node circle {
-            stroke: #fff;
-            stroke-width: 1.5px;
-        }
 
-        /* Kiểu dáng cho văn bản (text) của nút */
-        .node text {
-            /* Kích thước chữ sẽ được set bằng JS */
-            font-weight: 500;
-            fill: #fff; /* Chữ trắng */
-            paint-order: stroke;
-            stroke: #000; /* Viền đen cho chữ */
-            stroke-width: 3px;
-            stroke-linecap: butt;
-            stroke-linejoin: miter;
-            pointer-events: none;
-        }
+    /* === 3. CSS CHO SLIDE KẾT THÚC === */
+    #screen-3-end {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-family: "Poppins", sans-serif;
+    }
+    #screen-3-end h1 {
+        position: relative;
+        font-size: 38px;
+        text-align: center;
+        display: inline-block;
+        white-space: pre-wrap; 
+        line-height: 1.5;
+        -webkit-box-reflect: below 1px linear-gradient(transparent, #0005);
+    }
+    #screen-3-end span {
+        display: inline-block;
+        opacity: 0;
+        transform: translateY(-250px);
+        margin: 0 3px;
+    }
+    #screen-3-end span.animate {
+        animation: fall 1.3s ease-out forwards;
+    }
+    @keyframes fall {
+        0% { transform: translateY(-250px) scale(1.2); opacity: 0; filter: blur(5px); }
+        60% { transform: translateY(30px); opacity: 1; filter: blur(0); }
+        80% { transform: translateY(-10px); }
+        100% { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes glow {
+        0% { text-shadow: 0 0 10px #ff00de, 0 0 20px #ff00de; color: #ff99ff; }
+        50% { text-shadow: 0 0 20px #00ffff, 0 0 40px #00ffff; color: #99ffff; }
+        100% { text-shadow: 0 0 10px #ff00de, 0 0 20px #ff00de; color: #ff99ff; }
+    }
+    #screen-3-end h1.glow span.animate {
+        animation: fall 1.3s ease-out forwards, glow 2s infinite alternate;
+    }
+    #screen-3-end h1:hover span {
+        transform: scale(1.2);
+        transition: transform 0.3s ease;
+    }
 
-        /* Căn chỉnh text */
-        .node.leaf text { text-anchor: start; }
-        .node.internal text, .node.root text, .node.collapsed text { text-anchor: end; }
-
-        /* Kiểu dáng nút dựa trên trạng thái */
-        .node.root circle { fill: #d62728; }
-        .node.internal circle { fill: #1f77b4; cursor: pointer; }
-        .node.collapsed circle { fill: #aec7e8; cursor: pointer; }
-        .node.leaf circle { fill: #ff7f0e; }
-        
-        /* Biểu tượng Cài Đặt (Bánh răng) */
-        #settings-toggle-icon {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            z-index: 4;
-            cursor: pointer;
-            width: 40px;
-            height: 40px;
-            padding: 5px;
-            background: rgba(31, 119, 180, 0.8);
-            border-radius: 50%;
-            box-sizing: border-box;
-            transition: transform 0.3s ease;
-        }
-        #settings-toggle-icon:hover {
-            transform: rotate(60deg);
-        }
-        #settings-toggle-icon svg {
-            width: 100%;
-            height: 100%;
-            fill: #fff;
-        }
-
-        /* Bảng điều khiển (menu drop-up) */
-        #settings-panel {
-            position: absolute;
-            bottom: 70px; /* Ngay trên nút Cài Đặt */
-            right: 20px;
-            z-index: 3;
-            display: none; /* Ẩn mặc định */
-            flex-direction: column;
-            gap: 15px; /* Khoảng cách giữa các thanh trượt */
-            background: rgba(20,20,20,0.85);
-            backdrop-filter: blur(5px);
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #555;
-            width: 250px;
-        }
-
-        /* Lớp .open để hiển thị Bảng điều khiển */
-        #settings-panel.open {
-            display: flex;
-        }
-
-        /* Style chung cho các nhóm control */
-        .control-group {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-        .control-group label {
-            font-size: 12px;
-            color: #fff;
-            font-weight: bold;
-        }
-        .control-group input[type="range"] {
-            width: 100%;
-            cursor: pointer;
-        }
-    </style>
+</style>
 </head>
 <body>
-    
+
+<section id="screen-1-intro" class="screen">
+    <h1 id="animatedText"></h1>
+</section>
+
+<section id="screen-2-mindmap" class="screen">
     <canvas id="bg-canvas"></canvas>
-    
     <svg id="mindmap"></svg>
-
+    <div id="minimap-container"><svg id="minimap-svg"></svg></div>
     <div id="settings-toggle-icon">
-        <svg viewBox="0 0 24 24">
-            <path d="M19.4 12.9c.1-.3.1-.6.1-.9s0-.6-.1-.9l2.1-1.6c.2-.1.2-.4.1-.6l-2-3.5c-.1-.2-.4-.2-.6-.1l-2.5 1c-.5-.4-.9-.7-1.4-1l-.4-2.8c0-.2-.2-.4-.4-.4h-4c-.2 0-.4.2-.4.4l-.4 2.8c-.5.3-1 .6-1.4 1l-2.5-1c-.2-.1-.5 0-.6.1l-2 3.5c-.1.2-.1.5.1.6l2.1 1.6c-.1.3-.1.6-.1.9s0 .6.1.9l-2.1 1.6c-.2.1-.2.4-.1.6l2 3.5c.1.2.4.2.6.1l2.5-1c.5.4.9.7 1.4 1l.4 2.8c0 .2.2.4.4.4h4c.2 0 .4-.2.4.4l.4-2.8c.5-.3 1-.6 1.4-1l2.5 1c.2.1.5 0 .6-.1l2 3.5c.1-.2.1-.5-.1-.6l-2.1-1.6zM12 15.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5z"/>
-        </svg>
+        <svg viewBox="0 0 24 24"><path d="M19.4 12.9c.1-.3.1-.6.1-.9s0-.6-.1-.9l2.1-1.6c.2-.1.2-.4.1-.6l-2-3.5c-.1-.2-.4-.2-.6-.1l-2.5 1c-.5-.4-.9-.7-1.4-1l-.4-2.8c0-.2-.2-.4-.4-.4h-4c-.2 0-.4.2-.4.4l-.4 2.8c-.5.3-1 .6-1.4 1l-2.5-1c-.2-.1-.5 0-.6.1l-2 3.5c-.1.2-.1.5.1.6l2.1 1.6c-.1.3-.1.6-.1.9s0 .6.1.9l-2.1 1.6c-.2.1-.2.4-.1.6l2 3.5c.1.2.4.2.6.1l2.5-1c.5.4.9.7 1.4 1l.4 2.8c0 .2.2.4.4.4h4c.2 0 .4-.2.4.4l.4-2.8c.5-.3 1-.6 1.4-1l2.5 1c.2.1.5 0 .6-.1l2 3.5c.1-.2.1-.5-.1-.6l-2.1-1.6zM12 15.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5z"/></svg>
     </div>
-
     <div id="settings-panel">
-        <div class="control-group">
-            <label for="element-size-slider">KÍCH THƯỚC CHỮ/NÚT</label>
-            <input type="range" id="element-size-slider" min="0.5" max="2.0" step="0.1" value="1.0">
-        </div>
-        <div class="control-group">
-            <label for="vspacing-slider">SIZE (KHOẢNG CÁCH DỌC)</label>
-            <input type="range" id="vspacing-slider" min="10" max="100" step="1" value="35">
-        </div>
-        <div class="control-group">
-            <label for="spacing-slider">SIZE (KHOẢNG CÁCH NGANG)</label>
-            <input type="range" id="spacing-slider" min="50" max="500" step="5" value="220">
-        </div>
+        <div class="control-group"><label for="element-size-slider">KÍCH THƯỚC CHỮ/NÚT</label><input type="range" id="element-size-slider" min="0.5" max="2.0" step="0.1" value="1.0"></div>
+        <div class="control-group"><label for="vspacing-slider">SIZE (KHOẢNG CÁCH DỌC)</label><input type="range" id="vspacing-slider" min="10" max="100" step="1" value="35"></div>
+        <div class="control-group"><label for="spacing-slider">SIZE (KHOẢNG CÁCH NGANG)</label><input type="range" id="spacing-slider" min="50" max="500" step="5" value="220"></div>
     </div>
+</section>
 
-    <script>
-        // --- KỊCH BẢN NỀN 3D (THREE.JS) ---
+<section id="screen-3-end" class="screen">
+    <h1 id="end-title"></h1>
+</section>
+
+
+<div id="navigation-controls">
+    <button id="btn-prev">« Trước</button>
+    <button id="btn-next">Sau »</button>
+</div>
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        const screens = document.querySelectorAll('.screen');
+        const btnPrev = document.getElementById('btn-prev');
+        const btnNext = document.getElementById('btn-next');
+        let currentScreen = 0;
+
+        const screenInitializers = {
+            0: initIntroScreen,
+            1: initMindMapScreen,
+            2: initEndScreen
+        };
+
+        function showScreen(index) {
+            screens[currentScreen].classList.remove('active');
+            currentScreen = index;
+            screens[currentScreen].classList.add('active');
+            btnPrev.disabled = (currentScreen === 0);
+            btnNext.disabled = (currentScreen === screens.length - 1);
+            
+            const currentScreenElement = screens[currentScreen];
+            if (!currentScreenElement.dataset.initialized) {
+                if (screenInitializers[currentScreen]) {
+                    screenInitializers[currentScreen]();
+                }
+                currentScreenElement.dataset.initialized = "true";
+            }
+        }
+
+        btnNext.addEventListener('click', () => {
+            if (currentScreen < screens.length - 1) {
+                showScreen(currentScreen + 1);
+            }
+        });
+        btnPrev.addEventListener('click', () => {
+            if (currentScreen > 0) {
+                showScreen(currentScreen - 1);
+            }
+        });
+
+        showScreen(0);
+    });
+
+    // === 1. SCRIPT CHO SLIDE MỞ ĐẦU ===
+    function initIntroScreen() {
+        const text = "Chào mừng cô giáo và các bạn đến với bài thuyết trình của \nnhóm em.";
+        const container = document.getElementById('animatedText');
         
-        let scene, camera, renderer, starField;
-        let asteroids = []; // Mảng chứa các thiên thạch
-        const canvas = document.getElementById('bg-canvas');
-        const textureLoader = new THREE.TextureLoader();
-        textureLoader.crossOrigin = "anonymous"; // <<< FIX LỖI "Script error"
-        let fireTexture;
+        let html = '';
+        for (const char of text) {
+            if (char === '\n') {
+                html += '<br>';
+            } else if (char === ' ') {
+                html += ' ';
+            } else {
+                html += `<span>${char}</span>`;
+            }
+        }
+        container.innerHTML = html;
+        
+        const spans = container.querySelectorAll("span");
+        spans.forEach((span, index) => {
+            span.style.animation = `wave 0.5s forwards ease-out ${index * 0.1}s, glowColor 3s linear ${index * 0.1}s infinite`;
+        });
+    }
 
+    // === 2. SCRIPT CHO SLIDE SƠ ĐỒ TƯ DUY ===
+    function initMindMapScreen() {
+        // --- KỊCH BẢN NỀN 3D (THREE.JS) ---
+        let scene, camera, renderer, starField;
+        let asteroids = [];
+        const canvas = document.querySelector('#screen-2-mindmap #bg-canvas'); 
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.crossOrigin = "anonymous";
+        let fireTexture;
         function initThreeJS() {
             scene = new THREE.Scene();
             scene.fog = new THREE.FogExp2(0x000000, 0.002);
-
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.z = 100;
-
-            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: false, alpha: true, powerPreference: "high-performance" });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); 
             renderer.setSize(window.innerWidth, window.innerHeight);
-
             const ambientLight = new THREE.AmbientLight(0x404040);
             scene.add(ambientLight);
             const pointLight = new THREE.PointLight(0xffffff, 1, 0);
             pointLight.position.set(50, 50, 50);
             scene.add(pointLight);
-
-            // 1. Vũ trụ đầy sao
-            const starCount = 10000;
+            const starCount = 8000; 
             const starVertices = [];
             for (let i = 0; i < starCount; i++) {
-                const x = (Math.random() - 0.5) * 2000;
-                const y = (Math.random() - 0.5) * 2000;
-                const z = (Math.random() - 0.5) * 2000;
+                const x = (Math.random() - 0.5) * 2000, y = (Math.random() - 0.5) * 2000, z = (Math.random() - 0.5) * 2000;
                 starVertices.push(x, y, z);
             }
             const starGeometry = new THREE.BufferGeometry();
             starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
-            const starMaterial = new THREE.PointsMaterial({
-                color: 0xffffff,
-                size: 0.15,
-                blending: THREE.AdditiveBlending,
-                transparent: true,
-                opacity: 0.8
-            });
+            const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.15, blending: THREE.AdditiveBlending, transparent: true, opacity: 0.8 });
             starField = new THREE.Points(starGeometry, starMaterial);
             scene.add(starField);
-
-            // 2. Tải texture lửa (dùng cho thiên thạch cháy)
-            // *** ĐÃ SỬA LỖI 404 ***
             fireTexture = textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/sprites/fire1.png');
-
-            // 3. Tạo các thiên thạch
             const asteroidGeometry = new THREE.IcosahedronGeometry(1, 0);
-            const asteroidMaterial = new THREE.MeshStandardMaterial({ 
-                color: 0xaaaaaa, 
-                flatShading: true 
-            });
-
+            const asteroidMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, flatShading: true });
             for (let i = 0; i < 30; i++) {
                 const asteroid = new THREE.Mesh(asteroidGeometry, asteroidMaterial);
-                
-                asteroid.position.set(
-                    (Math.random() - 0.5) * 150,
-                    (Math.random() - 0.5) * 150,
-                    (Math.random() * -900) - 100 // Bắt đầu ở xa
-                );
-
-                let scale = Math.random() * 2 + 0.5;
-                let isBigAndBurning = false;
-
-                // 10% cơ hội là thiên thạch TO và CHÁY
-                if (Math.random() < 0.1) { 
-                    scale = Math.random() * 7 + 5; // To hơn hẳn
-                    isBigAndBurning = true;
-                }
-                
+                asteroid.position.set((Math.random() - 0.5) * 150, (Math.random() - 0.5) * 150, (Math.random() * -900) - 100);
+                let scale = Math.random() * 2 + 0.5, isBigAndBurning = false;
+                if (Math.random() < 0.1) { scale = Math.random() * 7 + 5; isBigAndBurning = true; }
                 asteroid.scale.set(scale, scale, scale);
                 asteroid.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
                 scene.add(asteroid);
-
                 const asteroidData = {
                     mesh: asteroid,
-                    velocity: new THREE.Vector3(
-                        (Math.random() - 0.5) * 0.05,
-                        (Math.random() - 0.5) * 0.05,
-                        Math.random() * 0.2 + 0.1 // Luôn bay về phía camera
-                    ),
-                    rotationSpeed: new THREE.Vector3(
-                        (Math.random() - 0.5) * 0.01,
-                        (Math.random() - 0.5) * 0.01,
-                        (Math.random() - 0.5) * 0.01
-                    ),
+                    velocity: new THREE.Vector3((Math.random() - 0.5) * 0.05, (Math.random() - 0.5) * 0.05, Math.random() * 0.2 + 0.1),
+                    rotationSpeed: new THREE.Vector3((Math.random() - 0.5) * 0.01, (Math.random() - 0.5) * 0.01, (Math.random() - 0.5) * 0.01),
                     isBigAndBurning: isBigAndBurning,
                     fireEffect: null
                 };
-
                 if (isBigAndBurning) {
-                    const fireMaterial = new THREE.SpriteMaterial({ 
-                        map: fireTexture, 
-                        color: 0xffa500,
-                        transparent: true, 
-                        blending: THREE.AdditiveBlending 
-                    });
+                    const fireMaterial = new THREE.SpriteMaterial({ map: fireTexture, color: 0xffa500, transparent: true, blending: THREE.AdditiveBlending });
                     const fireSprite = new THREE.Sprite(fireMaterial);
-                    fireSprite.scale.set(scale * 1.5, scale * 1.5, scale * 1.5); // Lửa to hơn thiên thạch
+                    fireSprite.scale.set(scale * 1.5, scale * 1.5, scale * 1.5);
                     asteroidData.fireEffect = fireSprite;
-                    asteroid.add(fireSprite); // Gắn lửa vào thiên thạch
+                    asteroid.add(fireSprite);
                 }
                 asteroids.push(asteroidData);
             }
-
             window.addEventListener('resize', onWindowResize, false);
             animate();
         }
-
-        // Vòng lặp hoạt ảnh
         function animate() {
             requestAnimationFrame(animate);
-            
             starField.rotation.x += 0.0001;
             starField.rotation.y += 0.0001;
-
             asteroids.forEach(obj => {
                 obj.mesh.position.add(obj.velocity);
                 obj.mesh.rotation.x += obj.rotationSpeed.x;
                 obj.mesh.rotation.y += obj.rotationSpeed.y;
                 obj.mesh.rotation.z += obj.rotationSpeed.z;
-
-                // Nếu bay quá camera, đưa trở lại "không gian sâu"
                 if (obj.mesh.position.z > camera.position.z) { 
                     obj.mesh.position.z = (Math.random() * -900) - 100;
                     obj.mesh.position.x = (Math.random() - 0.5) * 150;
                     obj.mesh.position.y = (Math.random() - 0.5) * 150;
                 }
-
                 if (obj.isBigAndBurning && obj.fireEffect) {
-                    obj.fireEffect.material.opacity = 0.5 + Math.sin(Date.now() * 0.005) * 0.2; // Nhấp nháy nhẹ
+                    obj.fireEffect.material.opacity = 0.6 + Math.sin(Date.now() * 0.005) * 0.1;
                 }
             });
-
             renderer.render(scene, camera);
         }
-
-        // Cập nhật khi thay đổi kích thước
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); 
             renderer.setSize(window.innerWidth, window.innerHeight);
             resizeD3();
         }
-
         initThreeJS();
 
-    </script>
-
-    <script>
         // --- KỊCH BẢN SƠ ĐỒ TƯ DUY (D3.JS) ---
         
+        // <<< DATA ĐÃ ĐƯỢC CẬP NHẬT SANG NGUYỆT CƠ >>>
         const jsonData = {
-          "name": "Nam Cao (1915–1951)",
+          "name": "Nguyệt Cơ",
           "children": [
             {
-              "name": "Tiểu sử",
+              "name": "1. Xuất thân",
               "children": [
-                { "name": "Tên thật: Trần Hữu Tri" },
-                { "name": "Quê quán: Đại Hoàng, Lý Nhân, Hà Nam" },
-                { "name": "Gia đình: Công giáo, bậc trung" },
-                { "name": "Học vấn: Học ở trường làng, sau xuống Nam Định học" },
-                { "name": "Sự nghiệp ban đầu: Thư ký ở Sài Gòn, dạy học ở Hà Nội" },
-                { "name": "Tham gia cách mạng: Gia nhập Hội Văn hóa cứu quốc (1943)" },
-                { "name": "Gia nhập Đảng Cộng sản Việt Nam: 1948" },
-                { "name": "Làm việc tại Hội Văn nghệ Việt Nam (1950)" }
+                { "name": "Gia đình quý tộc, có học thức, nề nếp." },
+                { "name": "Nền tảng cho nhân cách cao quý, giữ vững lý tưởng." }
               ]
             },
             {
-              "name": "Sự nghiệp sáng tác",
+              "name": "2. Ngoại hình",
+              "children": [
+                { "name": "Xinh đẹp, đoan trang." },
+                { "name": "Ánh mắt toát vẻ tinh tế và nỗi buồn man mác." },
+                { "name": "Phản ánh nội tâm sâu sắc, dịu dàng nhưng kiên cường." }
+              ]
+            },
+            {
+              "name": "3. Phẩm chất",
               "children": [
                 {
-                  "name": "Quan điểm sáng tác",
+                  "name": "Trí tuệ",
                   "children": [
-                    { "name": "Nghệ thuật vị nhân sinh: 'Nghệ thuật không nên là ánh trăng lừa dối...'" },
-                    { "name": "Tác phẩm phải chứa đựng điều lớn lao, mạnh mẽ, vừa đau đớn vừa phấn khởi" },
-                    { "name": "Văn chương phải sáng tạo, không theo khuôn mẫu" }
+                    { "name": "Am hiểu thiên nhiên, dạy dân cách tránh bão, ra khơi." },
+                    { "name": "Bình tĩnh suy xét, nhận ra nguyên nhân sóng dữ (không chỉ do siêu nhiên)." },
+                    { "name": "Dặn dò dân làng đoàn kết, sống nhân nghĩa (tầm nhìn sâu xa)." }
                   ]
                 },
                 {
-                  "name": "Tác phẩm chính",
+                  "name": "Bao dung & Hy sinh",
                   "children": [
-                    { "name": "Chí Phèo" },
-                    { "name": "Lão Hạc" },
-                    { "name": "Sống mòn" },
-                    { "name": "Giăng sáng" },
-                    { "name": "Đôi mắt" }
+                    { "name": "Chủ động xin làm vật tế, hi sinh thay cho dân làng." },
+                    { "name": "Trước khi mất, dặn dò dân làng đoàn kết, yêu thương nhau." },
+                    { "name": "Sau khi mất, hóa thần tiếp tục phù hộ cho dân làng." },
+                    { "name": "Được nhân dân lập đền thờ (Linh từ) tưởng nhớ." }
                   ]
                 },
                 {
-                  "name": "Phong cách nghệ thuật",
+                  "name": "Lòng yêu chồng (Thủy chung)",
                   "children": [
-                    { "name": "Quan tâm đời sống tinh thần con người" },
-                    { "name": "Khám phá nội tâm nhân vật" },
-                    { "name": "Triết lý trữ tình, sắc lạnh" },
-                    { "name": "Viết về cái nhỏ nhặt nhưng mang ý nghĩa lớn" }
+                    { "name": "Một lòng chung thủy, son sắt chờ đợi chồng (Lương Tư)." },
+                    { "name": "Hết lòng lo lắng, cầu nguyện khi chồng gặp nạn." }
+                  ]
+                },
+                {
+                  "name": "Lòng yêu nước (Thương dân)",
+                  "children": [
+                    { "name": "Sẵn sàng hi sinh bản thân để cứu dân làng khỏi sóng dữ." },
+                    { "name": "Hóa thần, tiếp tục phù hộ dân, bảo vệ thuyền bè an toàn." }
                   ]
                 }
               ]
             },
             {
-              "name": "Vị trí và tầm ảnh hưởng",
+              "name": "4. Tổng kết",
               "children": [
-                { "name": "Nhà văn lớn, cây bút xuất sắc của văn học hiện đại" },
-                { "name": "Đại diện xuất sắc cho chủ nghĩa hiện thực nhân đạo thế kỷ XX" },
-                { "name": "Đưa chủ nghĩa hiện thực lên tầm tâm lý" },
-                { "name": "Giải thưởng Hồ Chí Minh về Văn học Nghệ thuật (1996)" }
+                { "name": "Hình tượng người phụ nữ Việt Nam lý tưởng:" },
+                { "name": "Nhân hậu - Cương trực - Thủy chung - Yêu nước - Trí tuệ" }
               ]
             }
           ]
         };
+        // <<< KẾT THÚC CẬP NHẬT DATA >>>
 
-        // Biến toàn cục cho kích thước
-        let globalNodeHeight = 35;
-        let globalNodeWidth = 220;
-        let globalElementScale = 1.0;
-        
-        // Cài đặt D3
+        let globalNodeHeight = 35, globalNodeWidth = 220, globalElementScale = 1.0;
+        let minimap, miniSvg, miniG, viewportRect, miniScale;
+        let miniTranslateX = 0, miniTranslateY = 0;
+        let currentNodes = [], currentLinks = []; 
+        const minimapWidth = 200, minimapHeight = 150;
         const margin = { top: 20, right: 120, bottom: 20, left: 120 };
-        let width = window.innerWidth;
-        let height = window.innerHeight;
+        let width = window.innerWidth, height = window.innerHeight;
         
-        const svgD3 = d3.select("#mindmap").attr("viewBox", [0, 0, width, height]);
-
-        // *** ĐÃ SỬA LỖI D3 ***
-        // Đóng bảng cài đặt khi nhấp vào nền SVG
+        const svgD3 = d3.select("#screen-2-mindmap #mindmap").attr("viewBox", [0, 0, width, height]);
         svgD3.on("click", () => {
             if (settingsPanel.classList.contains('open')) {
                 settingsPanel.classList.remove('open');
             }
         });
-
         const g = svgD3.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+        minimap = d3.select("#screen-2-mindmap #minimap-container");
+        miniSvg = d3.select("#screen-2-mindmap #minimap-svg");
+        miniG = miniSvg.append("g");
+        viewportRect = miniSvg.append("rect").attr("class", "viewport-rect");
         const treeLayout = d3.tree().nodeSize([globalNodeHeight, globalNodeWidth]);
         const root = d3.hierarchy(jsonData);
-        root.x0 = height / 2;
-        root.y0 = 0;
-
-        // Đóng tất cả các nút con ban đầu
+        root.x0 = height / 2; root.y0 = 0;
         root.descendants().forEach((d, i) => {
-            d.id = i;
-            d._children = d.children;
-            if (d.depth > 0) { // Đóng hết, chỉ chừa lại nút gốc
-                d.children = null;
-            }
+            d.id = i; d._children = d.children;
+            if (d.depth > 0) d.children = null;
         });
-
-        // Thiết lập Zoom
-        // *** ĐÃ SỬA LỖI D3 ***
-        // (Đã xóa .on("click.zoom", ...) khỏi đây)
-        const zoom = d3.zoom()
-            .scaleExtent([0.1, 3])
-            .on("zoom", (event) => {
-                g.attr("transform", event.transform);
-            });
-        
+        const zoom = d3.zoom().scaleExtent([0.1, 3]).on("zoom", (event) => {
+            g.attr("transform", event.transform);
+            updateMinimapViewport(event.transform);
+        });
         svgD3.call(zoom);
-        // Đẩy sơ đồ vào 300px từ lề trái
-svgD3.call(zoom.transform, d3.zoomIdentity.translate(300, height / 2).scale(1.0));
-
-// Hoặc: Đẩy sơ đồ vào 1/4 chiều rộng màn hình
-svgD3.call(zoom.transform, d3.zoomIdentity.translate(width / 4, height / 2).scale(1.0));
-
-        // Hàm Update (Cập nhật biểu đồ)
+        svgD3.call(zoom.transform, d3.zoomIdentity.translate(300, height / 2).scale(1.0));
         function update(source, forceResize = false) {
-            const duration = forceResize ? 0 : 250; // Không có hiệu ứng khi resize
-
-            // Cập nhật layout với kích thước mới
+            const duration = forceResize ? 0 : 250; 
             treeLayout.nodeSize([globalNodeHeight, globalNodeWidth]);
             const treeData = treeLayout(root);
-            const nodes = treeData.descendants();
-            const links = treeData.links();
-
-            // Cập nhật NÚT (Nodes)
-            const node = g.selectAll("g.node")
-                .data(nodes, d => d.id);
-
+            const nodes = treeData.descendants(), links = treeData.links();
+            const node = g.selectAll("g.node").data(nodes, d => d.id);
             const nodeEnter = node.enter().append("g")
                 .attr("class", d => `node ${d.depth === 0 ? 'root' : (d._children ? 'collapsed' : (d.children ? 'internal' : 'leaf'))}`)
-                .attr("transform", d => `translate(${source.y0},${source.x0})`)
-                .on("click", onClick);
-
-            nodeEnter.append("circle")
-                .attr("r", 1e-6);
-
-            nodeEnter.append("text")
-                .text(d => d.data.name)
-                .attr("dy", "0.31em")
-                .style("opacity", 0);
-
-            const nodeUpdate = node.merge(nodeEnter)
-                .transition().duration(duration)
-                .attr("transform", d => `translate(${d.y},${d.x})`)
-                .attr("class", d => `node ${d.depth === 0 ? 'root' : (d._children ? 'collapsed' : (d.children ? 'internal' : 'leaf'))}`);
-            
-            nodeUpdate.select("circle")
-                .attr("r", d => (d.depth === 0 ? 10 : (d._children || d.children ? 8 : 6)) * globalElementScale) // Áp dụng scale
+                .attr("transform", d => `translate(${source.y0},${source.x0})`).on("click", onClick);
+            nodeEnter.append("circle").attr("r", 1e-6);
+            nodeEnter.append("text").text(d => d.data.name).attr("dy", "0.31em").style("opacity", 0);
+            const nodeUpdate = node.merge(nodeEnter).transition().duration(duration)
+                .attr("transform", d => `translate(${d.y},${d.x})`).attr("class", d => `node ${d.depth === 0 ? 'root' : (d._children ? 'collapsed' : (d.children ? 'internal' : 'leaf'))}`);
+            nodeUpdate.select("circle").attr("r", d => (d.depth === 0 ? 10 : (d._children || d.children ? 8 : 6)) * globalElementScale)
                 .attr("class", d => d._children ? "collapsed" : (d.children ? "internal" : "leaf"));
-
-            nodeUpdate.select("text")
-                .attr("x", d => (d.children || d._children) ? (-12 * globalElementScale) : (12 * globalElementScale)) // Áp dụng scale
-                .style("font-size", `${12 * globalElementScale}px`) // Áp dụng scale
-                .style("opacity", 1);
-
+            nodeUpdate.select("text").attr("x", d => (d.children || d._children) ? (-12 * globalElementScale) : (12 * globalElementScale))
+                .style("font-size", `${12 * globalElementScale}px`).style("opacity", 1);
             const nodeExit = node.exit().transition().duration(duration)
-                .attr("transform", d => `translate(${source.y},${source.x})`)
-                .style("opacity", 0)
-                .remove();
-
-            nodeExit.select("circle").attr("r", 1e-6);
-            nodeExit.select("text").style("opacity", 1e-6);
-
-            // Cập nhật LIÊN KẾT (Links)
+                .attr("transform", d => `translate(${source.y},${source.x})`).style("opacity", 0).remove();
+            nodeExit.select("circle").attr("r", 1e-6); nodeExit.select("text").style("opacity", 1e-6);
             const linkGenerator = d3.linkHorizontal().x(d => d.y).y(d => d.x);
             const link = g.selectAll("path.link").data(links, d => d.target.id);
-
-            const linkEnter = link.enter().insert("path", "g")
-                .attr("class", "link")
-                .attr("d", d => {
-                    const o = { x: source.x0, y: source.y0 };
-                    return linkGenerator({ source: o, target: o });
-                });
-
-            link.merge(linkEnter).transition().duration(duration)
-                .attr("d", linkGenerator);
-
+            const linkEnter = link.enter().insert("path", "g").attr("class", "link")
+                .attr("d", d => { const o = { x: source.x0, y: source.y0 }; return linkGenerator({ source: o, target: o }); });
+            link.merge(linkEnter).transition().duration(duration).attr("d", linkGenerator);
             link.exit().transition().duration(duration)
-                .attr("d", d => {
-                    const o = { x: source.x, y: source.y };
-                    return linkGenerator({ source: o, target: o });
-                })
-                .remove();
-            
-            nodes.forEach(d => {
-                d.x0 = d.x;
-                d.y0 = d.y;
-            });
+                .attr("d", d => { const o = { x: source.x, y: source.y }; return linkGenerator({ source: o, target: o }); }).remove();
+            nodes.forEach(d => { d.x0 = d.x; d.y0 = d.y; });
+            currentNodes = nodes; currentLinks = links;
+            updateMinimap(currentNodes, currentLinks); 
+            updateMinimapViewport(d3.zoomTransform(svgD3.node()));
         }
-
-        // Xử lý sự kiện Click vào nút
+        function updateMinimap(nodes, links) {
+            nodes.forEach((d, i) => { if (!d.id) d.id = `mini-${i}`; });
+            links.forEach((l, i) => { if (!l.target.id) l.target.id = `mini-target-${i}`; });
+            const miniLinkGenerator = d3.linkHorizontal().x(d => d.y).y(d => d.x);
+            miniG.selectAll(".mini-link").data(links, d => d.target.id).join("path").attr("class", "mini-link").attr("d", miniLinkGenerator);
+            miniG.selectAll(".mini-node").data(nodes, d => d.id).join("circle").attr("class", "mini-node")
+                .attr("cx", d => d.y).attr("cy", d => d.x).attr("r", 2); 
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            nodes.forEach(d => {
+                if (d.y < minX) minX = d.y; if (d.y > maxX) maxX = d.y;
+                if (d.x < minY) minY = d.x; if (d.x > maxY) maxY = d.x;
+            });
+            if (nodes.length === 1) { minX -= 10; maxX += 10; minY -= 10; maxY += 10; }
+            const padding = 10; 
+            minX -= padding; maxX += padding; minY -= padding; maxY += padding;
+            const fullWidth = (maxX - minX) || 1, fullHeight = (maxY - minY) || 1;
+            const bounds = { x: minX, y: minY, width: fullWidth, height: fullHeight };
+            miniScale = Math.min(minimapWidth / fullWidth, minimapHeight / fullHeight) * 0.9; 
+            miniTranslateX = (minimapWidth - fullWidth * miniScale) / 2 - (bounds.x * miniScale);
+            miniTranslateY = (minimapHeight - fullHeight * miniScale) / 2 - (bounds.y * miniScale);
+            miniG.attr("transform", `translate(${miniTranslateX},${miniTranslateY}) scale(${miniScale})`);
+            miniG.selectAll(".mini-node").attr("r", (2 / miniScale) || 2);
+        }
+        function updateMinimapViewport(mainTransform) {
+            if (!miniScale) return; 
+            const { k, x, y } = mainTransform;
+            const viewWidth = width / k, viewHeight = height / k, viewX = -x / k, viewY = -y / k;
+            viewportRect.attr("width", viewWidth * miniScale).attr("height", viewHeight * miniScale)
+                .attr("x", (viewX * miniScale) + miniTranslateX).attr("y", (viewY * miniScale) + miniTranslateY).attr("transform", null); 
+        }
+        function setupMinimapInteractions() {
+            miniSvg.on("click", (event) => {
+                if (event.target !== miniSvg.node() && event.target !== miniG.node()) return; 
+                const [miniX, miniY] = d3.pointer(event, miniG.node());
+                const currentTransform = d3.zoomTransform(svgD3.node());
+                const k = currentTransform.k;
+                const newX = (width / 2) - (miniX * k), newY = (height / 2) - (miniY * k);
+                const newTransform = d3.zoomIdentity.translate(newX, newY).scale(k);
+                svgD3.transition().duration(250).call(zoom.transform, newTransform);
+            });
+            const drag = d3.drag()
+                .on("start", () => viewportRect.style("cursor", "grabbing"))
+                .on("drag", (event) => {
+                    const { dx, dy } = event, k = d3.zoomTransform(svgD3.node()).k;
+                    svgD3.call(zoom.translateBy, -dx / k, -dy / k);
+                })
+                .on("end", () => viewportRect.style("cursor", "move"));
+            viewportRect.call(drag);
+        }
         function onClick(event, d) {
-            if (settingsPanel.classList.contains('open')) {
-                settingsPanel.classList.remove('open');
-            }
-            event.stopPropagation(); // Ngăn click lan ra SVG
-
-            if (d.depth === 0 && !d.children && !d._children) return; // Không làm gì nếu là nút gốc không con
-
-            if (d.children) {
-                d._children = d.children;
-                d.children = null;
-            } else {
-                d.children = d._children;
-                d._children = null;
-            }
+            if (settingsPanel.classList.contains('open')) settingsPanel.classList.remove('open');
+            event.stopPropagation(); 
+            if (d.depth === 0 && !d.children && !d._children) return; 
+            if (d.children) { d._children = d.children; d.children = null; }
+            else { d.children = d._children; d._children = null; }
             update(d);
         }
-        
-        // Hàm resize cho D3 (được gọi bởi hàm resize của Three.js)
         function resizeD3() {
-            width = window.innerWidth;
-            height = window.innerHeight;
+            width = window.innerWidth; height = window.innerHeight;
             svgD3.attr("viewBox", [0, 0, width, height]);
+            updateMinimap(currentNodes, currentLinks);
+            updateMinimapViewport(d3.zoomTransform(svgD3.node()));
         };
-
-        // Chạy hàm update D3 lần đầu tiên
         update(root);
+        setupMinimapInteractions();
         
-        // --- CÁC THANH TRƯỢT ĐIỀU KHIỂN ---
-        const settingsToggle = document.getElementById('settings-toggle-icon');
-        const settingsPanel = document.getElementById('settings-panel');
-        
-        // Ngăn click vào bảng điều khiển lan ra SVG (khiến nó tự đóng)
-        settingsPanel.addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
-
-        const sizeSlider = document.getElementById('element-size-slider');
-        const vSlider = document.getElementById('vspacing-slider');
-        const hSlider = document.getElementById('spacing-slider');
-
-        // Mở/Đóng Bảng Cài Đặt
+        const settingsToggle = document.querySelector("#screen-2-mindmap #settings-toggle-icon");
+        const settingsPanel = document.querySelector("#screen-2-mindmap #settings-panel");
+        settingsPanel.addEventListener('click', (e) => e.stopPropagation());
+        const sizeSlider = document.querySelector("#screen-2-mindmap #element-size-slider");
+        const vSlider = document.querySelector("#screen-2-mindmap #vspacing-slider");
+        const hSlider = document.querySelector("#screen-2-mindmap #spacing-slider");
         settingsToggle.addEventListener('click', (e) => {
             e.stopPropagation();
             settingsPanel.classList.toggle('open');
         });
+        sizeSlider.addEventListener('input', (e) => { globalElementScale = +e.target.value; update(root, true); });
+        vSlider.addEventListener('input', (e) => { globalNodeHeight = +e.target.value; update(root, true); });
+        hSlider.addEventListener('input', (e) => { globalNodeWidth = +e.target.value; update(root, true); });
+    }
 
-        // 1. Thanh Kích thước Chữ/Nút (Px)
-        sizeSlider.addEventListener('input', (e) => {
-            globalElementScale = +e.target.value;
-            update(root, true); // Cập nhật ngay (forceResize = true)
+    // === 3. SCRIPT CHO SLIDE KẾT THÚC ===
+    function initEndScreen() {
+        const text = `CẢM ƠN CÔ GIÁO VÀ CÁC BẠN
+ĐÃ LẮNG NGHE PHẦN TRÌNH BÀY CỦA NHÓM 4.
+ 
+CÒN GÌ SAI SÓT MONG CÔ GIÁO VÀ CÁC BẠN
+CHO NHÓM EM XIN NHỮNG ĐÓNG GÓP
+ĐỂ NHÓM EM SỬA VÀ LÀM TỐT HƠN
+Ở NHỮNG BÀI SAU.`;
+
+        const title = document.querySelector("#screen-3-end #end-title");
+
+        if (title.childElementCount > 0) return; 
+
+        [...text].forEach((char, i) => {
+          const span = document.createElement("span");
+          if (char === '\n') {
+              title.appendChild(document.createElement("br"));
+          } else {
+              span.textContent = char;
+              span.style.animationDelay = `${i * 0.08}s`; 
+              title.appendChild(span);
+              
+              setTimeout(() => {
+                  span.classList.add('animate');
+              }, 10); 
+          }
         });
 
-        // 2. Thanh Khoảng cách Dọc (Vertical)
-        vSlider.addEventListener('input', (e) => {
-            globalNodeHeight = +e.target.value;
-            update(root, true); // Cập nhật ngay
-        });
+        const totalTime = text.length * 80 + 1300;
+        setTimeout(() => title.classList.add("glow"), totalTime);
+    }
+</script>
 
-        // 3. Thanh Khoảng cách Ngang (Horizontal)
-        hSlider.addEventListener('input', (e) => {
-            globalNodeWidth = +e.target.value;
-            update(root, true); // Cập nhật ngay
-        });
-        
-    </script>
 </body>
 </html>
